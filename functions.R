@@ -49,7 +49,12 @@ calculate.volume = function(df) {
   
   df[, VolumeCorrection := 1]
   df[PS0 == "IMF" & Form == "Liquid", VolumeCorrection := 7]
-  df[PS0 == "AMN" & Form == "Liquid", VolumeCorrection := 4.5]
+  # df[PS0 == "AMN" & Form == "Liquid", VolumeCorrection := 4.5]
+  df[PS == "Enhanced Recovery" & Form == "Liquid", VolumeCorrection := 4.801183]
+  df[PS == "Recovery" & Form == "Liquid", VolumeCorrection := 2.892422]
+  df[PS == "Metabolics" & Form == "Liquid", VolumeCorrection := 5.430002]
+  df[PS == "Faltering Growth" & Form == "Liquid", VolumeCorrection := 3.416514]
+  
   # df[PS == "Condensed Milk" & Form == "Liquid", VolumeCorrection := 3.5]
   df[PS == "Liquid Cereals" &
        Form == "Liquid", VolumeCorrection := 3.5]
@@ -220,11 +225,73 @@ define.scent.type = function(a) {
   }
 }
 
+add.brand = function(df, df.existing){
+  
+  brand.column = names(df.existing)[stri_detect_fixed(tolower(names(df.existing)), "brand")]
+  brand.column = brand.column[brand.column != "Brand"]
+  
+  dictBrands = df.existing[, .(Brand = unique(Brand)), by = brand.column]
+  
+  # clean brand
+  
+  dictBrands = dictBrands[!(Brand == "" | is.na(Brand))]
+  brands.list = dictBrands[, .N, brand.column][N == 1, get(brand.column)]
+  
+  dictBrands = dictBrands[get(brand.column) %in% brands.list]
+  
+  df[dictBrands, on = brand.column, Brand := i.Brand]
+  
+}
+
+add.brand2 = function(df, df.existing, df.matrix, acceptable.p) {
+  
+  if (between(acceptable.p, 0, 1)) {check = TRUE}
+  
+  if (check == TRUE) {
+    df.existing[df.matrix, on = "ID", Brand := i.Brand]
+    
+    brand.column = names(df.existing)[stri_detect_fixed(tolower(names(df.existing)), "brand")]
+    
+    dictBrands = df.existing[, .N, by = brand.column]
+    
+    brand.column = brand.column[brand.column != "Brand"]
+    
+    dictBrands[, p := prop.table(N), by = brand.column][, N := NULL][, .SD[which.max(p)], by = brand.column]
+    
+    # clean brand
+    dictBrands = dictBrands[p > acceptable.p &
+                              !(is.na(Brand) | Brand == "") &
+                              !(is.na(get(brand.column)) |
+                                  get(brand.column) == "")]
+    
+    df[dictBrands, on = brand.column, Brand := i.Brand]
+    
+  } else {
+    print("Wrong range of p. It must be between 0 and 1. Change the value and try again!")
+    
+  }
+  
+}
+
+
+
 addSize = function(df) {
   # Size
-  df[, Size := stri_extract_first_regex(SKU2, "[0-9]+[GML]+")]
+  # df[, Size := stri_extract_first_regex(SKU2, "[0-9]+[GML]+")]
+
+  
+  df[, Size := stri_extract_first_regex(tolower(SKU2), "[0-9]*[.,]*[0-9]+\\s*(g|ml|мл|гр?|л(?!е))")]
+  
   df[, Size := stri_replace_first_fixed(Size, "G", "Gr")]
   df[, Size := stri_replace_first_fixed(Size, "ML", "Ml")]
+  df[, Size := stri_replace_first_fixed(Size, "гр", "Gr")]
+  df[, Size := stri_replace_first_fixed(Size, "г", "Gr")]
+  df[, Size := stri_replace_first_fixed(Size, "мл", "Ml")]
+  df[, Size := stri_replace_first_regex(Size, "(?<!м)л", "Lt")]
+  df[, Size := stri_replace_first_fixed(Size, ",", ".")]
+  
+  df[, Size := stri_trim_both(Size)]
+  df[, Size := stri_replace_all_fixed(Size, " ", "")]
   
 }
 
@@ -539,23 +606,46 @@ check.attributes = function(df) {
   
   # Check for PS3 & PS0 correspondence #### REWORK for PS, not PS3
   
-  dictPSVPS3 = c("Specials",
-                 "Enhanced Recovery",
-                 "Faltering Growth",
-                 "Metabolics",
-                 "Recovery")
+  # dictPSVPS3 = c("Specials",
+  #                "Enhanced Recovery",
+  #                "Faltering Growth",
+  #                "Metabolics",
+  #                "Recovery")
   
-  if (df[(is.na(PSV) | PSV == "") & (PS3 %in% dictPSVPS3), .N] > 0 |
+  dictPSVPS = c("Allergy Treatment",
+                "Faltering Growth",
+                "Soy",
+                "DR-NL",
+                "Enhanced Recovery",
+                "Digestive Comfort",
+                "Recovery"
+  )
+  
+  # if (df[(is.na(PSV) | PSV == "") & (PS3 %in% dictPSVPS3), .N] > 0 |
+  #     df[!(is.na(PSV) |
+  #          PSV == "") & !(PS3 %in% dictPSVPS3), .N] > 0) {
+  #   is.OK.PSV = FALSE
+  #   print("PSV must be only for Specials and AMN")
+  #   print(df[(is.na(PSV) | PSV == "") & (PS3 %in% dictPSVPS3),
+  #            SKU,
+  #            by = .(PSV, PS3)])
+  #   print(df[!(is.na(PSV) | PSV == "") & !(PS3 %in% dictPSVPS3),
+  #            SKU,
+  #            by = .(PSV, PS3)])
+  #   cat("\n")
+  # }
+  
+  if (df[(is.na(PSV) | PSV == "") & (PS %in% dictPSVPS), .N] > 0 |
       df[!(is.na(PSV) |
-           PSV == "") & !(PS3 %in% dictPSVPS3), .N] > 0) {
+           PSV == "") & !(PS %in% dictPSVPS), .N] > 0) {
     is.OK.PSV = FALSE
-    print("PSV must be only for Specials and AMN")
-    print(df[(is.na(PSV) | PSV == "") & (PS3 %in% dictPSVPS3),
+    print("PSV must be only for selected PS only. See dictinoary for details.")
+    print(df[(is.na(PSV) | PSV == "") & (PS %in% dictPSVPS),
              SKU,
-             by = .(PSV, PS3)])
-    print(df[!(is.na(PSV) | PSV == "") & !(PS3 %in% dictPSVPS3),
+             by = .(PSV, PS)])
+    print(df[!(is.na(PSV) | PSV == "") & !(PS %in% dictPSVPS),
              SKU,
-             by = .(PSV, PS3)])
+             by = .(PSV, PS)])
     cat("\n")
   }
   
@@ -905,7 +995,9 @@ check.attributes = function(df) {
   dictPSFlavoured = c(
     "Apple",
     "Banana",
+    "Biscuits",
     "Buckwheat",
+    "Buckwheat-Oat",
     "Carrot-Rice",
     "Cereals",
     "Chocolate",
@@ -917,6 +1009,7 @@ check.attributes = function(df) {
     "Mokko",
     "Oat",
     "Orange",
+    "Raspberry",
     "Red Fruits",
     "Rice",
     "Strawberry",
@@ -1218,6 +1311,50 @@ raw.data.processing = function(df) {
   
 }
 
+export.new.skus = function(df, df.existing){
+  
+  is.pharma.df = any(stri_detect_fixed(tolower(names(df)), "morion"))
+  
+  if (is.pharma.df == TRUE) {
+    unique.ID = c("ID.morion", "SKU2")  
+    
+  } else {unique.ID = "SKU2"}
+  
+  original.columns = names(df)[!stri_detect_regex(names(df), "SKU|Region|Items|Value|Volume")]
+  cols.united = unique(c(unique.ID, original.columns))
+  
+  df = remove.zero.sales(df)
+  df = add.cleaned.sku(df, original.columns)
+  
+  # df = df[, .N, by = c(unique.ID, "SKU", original.columns)][, N := NULL]
+  # df = df[, .N, by = eval(unique(c(unique.ID, original.columns)))][, N := NULL]
+
+  
+  df = df[, .N, by = cols.united][, N := NULL]
+  
+  df.new = df[!df.existing[!(is.na(ID) | ID == "")], on = unique.ID]
+  
+  # rework for all sources (require change of nielsen data)
+  # df.new[dictCompanyBrand, on = c(BRAND = "NielsenBrand"), Brand := i.RTRIBrand]
+  
+  # add.brand(df.new, df.existing)
+  add.brand2(df.new, df.existing, df.matrix, 0.6)
+  addSize(df.new)
+  
+  # Can be moved to similar.description function, as well as ID columns
+  if (is.pharma.df == TRUE){
+    df.new[, Comments := as.character(NA)]
+    
+  }
+  
+  # Extra columns
+  df.new[, `:=`(ID = as.integer(NA),
+                Date = as.character(Sys.time()))]
+  
+  return(df.new)
+  
+}
+
 
 append.new.data = function(df.new.data,
                            df.historical.data,
@@ -1318,3 +1455,47 @@ append.new.data = function(df.new.data,
   }
   
 }
+
+check.historical.data = function(df) {
+  
+  print(df[, .N, by = .(Ynb, Mnb)])
+  
+  if (any(stri_detect_fixed(tolower(names(df)), "volume"))) {
+    print(df[, .(Volume = sum(Volume), Value = sum(Value)), by = .(Ynb, Mnb)])
+  } else {
+    print(df[, .(Items = sum(Items), Value = sum(Value)), by = .(Ynb, Mnb)])
+    
+  }
+}
+
+similar.description = function(df) {
+  
+  # Check that the right file is obtained
+  
+  df.temp = df[, .N, by = ID.morion][N > 1]
+  df[df.temp, on = "ID.morion", Comment := "Same ID.morion"]
+  
+  df.temp = df.sku.proxima[, .N, by = SKU2][N > 1]
+  df[df.temp, on = "SKU2", Comment := "Same SKU name"]
+  
+  df.temp = df.sku.proxima[, .N, by = .(ID.morion, SKU2)][N > 1]
+  df[df.temp, on = c("ID.morion", "SKU2"),
+     Comment := "Duplicate line"]
+  
+  rm(df.temp)
+  
+}
+
+check.periods.equal = function(...) {
+  
+  df.list = list(...)
+  df.list = lapply(df.list, function(x) x[, .(Mnb = unique(Mnb)), by = Ynb])
+  
+  periods.equal = all(sapply(df.list, function(x) all.equal(x, df.list[[1]])))
+  
+  # Clean memory
+  rm(df.list)
+  
+  return(periods.equal)
+}
+

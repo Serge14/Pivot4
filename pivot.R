@@ -1,9 +1,12 @@
 library(data.table)
 library(stringi)
 
-df.n = fread("/home/sergiy/Documents/Work/Nutricia/Data/N_MT_2015-2020M03.csv")
-df.p  = fread("/home/sergiy/Documents/Work/Nutricia/Data/BF_PH_2015-2020M03.csv")
-df.amn = fread("/home/sergiy/Documents/Work/Nutricia/Data/AMN_PH_2015-2020M03.csv")
+source("functions.R")
+
+# df.ec = fread("/home/sergiy/Documents/Work/Nutricia/Data/EC_2015-2020M05.csv")
+df.n = fread("/home/sergiy/Documents/Work/Nutricia/Data/N_MT_2015-2020M06.csv")
+df.p  = fread("/home/sergiy/Documents/Work/Nutricia/Data/BF_PH_2015-2020M06.csv")
+df.amn = fread("/home/sergiy/Documents/Work/Nutricia/Data/AMN_PH_2015-2020M06.csv")
 df.sku.proxima = fread("/home/sergiy/Documents/Work/Nutricia/Data/Dictionaries/df.sku.proxima.csv")
 df.sku.nielsen = fread("/home/sergiy/Documents/Work/Nutricia/Data/Dictionaries/df.sku.nielsen.csv")
 df.matrix = fread("/home/sergiy/Documents/Work/Nutricia/Data/Dictionaries/df.sku.matrix.csv")
@@ -12,6 +15,25 @@ dictEC = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/dictEC.csv")
 dictAC = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/dictAC.csv")
 dict.price.segments = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/PriceSegments.csv")
 dictScent = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/dictScents.csv")
+
+### Check periods, select the same range of data
+
+min.year = max(df.n[, min(Ynb)],
+               df.p[, min(Ynb)],
+               df.amn[, min(Ynb)])
+
+# Select same range
+df.n = df.n[Ynb >= min.year]
+df.p = df.p[Ynb >= min.year]
+df.amn = df.amn[Ynb >= min.year]
+
+# Check if all files have all periods
+periods.equal = check.periods.equal(df.n, df.p, df.amn)
+
+if (periods.equal != TRUE) {
+   print("Datasets contain different number of periods, check datasets")}
+   
+
 
 # Matrix
 df.matrix[, SKU2 := SKU]
@@ -123,17 +145,6 @@ df.p[, "Region.pharma" := NULL]
 df.n[, Channel := "MT"]
 df.p[, Channel := "PHARMA"]
 
-# df.n[, c("BRAND",
-#          "BRAND.OWNER",
-#          "DANONE.SEGMENT",
-#          "DANONE.SUB.SEGMENT",
-#          "PRODUCT.FORM",
-#          "TYPE...BABY.PRODUCT",
-#          "PRODUCT.BASE",
-#          "Period",
-#          "Scent2",
-#          "ScentType") := NULL]
-
 all(names(df.n) %in% names(df.p))
 
 df = rbindlist(list(df.p, df.n), use.names = TRUE)
@@ -177,6 +188,87 @@ extrapolate(df)
 
 add.price.segments(df)
 
+price.check = TRUE
+
+# check if any price segments are missing
+if (df[(is.na(PriceSegment) | PriceSegment == "" |
+        is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
+      (PS0 == "IMF" & Form != "Liquid"), .N] > 0) {
+   
+  
+   price.check = FALSE
+   
+   print("No price segments for IMF brands. Add price segments to the dictionary!")
+   
+   print(
+   df[(is.na(PriceSegment) | PriceSegment == "" |
+          is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
+         (PS0 == "IMF" & Form != "Liquid"), 
+      .(Brand = sort(unique(Brand)))]
+   )
+   
+   df[PS0 == "IMF" & Form != "Liquid" & Ynb == max(Ynb),
+      .(Price = sum(Value)/sum(Volume),
+        Volume = sum(VolumeC),
+        Value = sum(ValueC)), 
+      by = .(Brand, PriceSegment, GlobalPriceSegment)][order(-Price)]
+   
+}
+
+if (df[(is.na(PriceSegment) | PriceSegment == "" |
+        is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
+      (PS2 == "Dry Food"), .N] > 0) {
+   
+   price.check = FALSE
+   
+   print("No price segments for DF brands. Add price segments to the dictionary!")
+   
+   print(
+   df[(is.na(PriceSegment) | PriceSegment == "" |
+          is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
+         (PS2 == "Dry Food"), 
+      .(Brand = sort(unique(Brand)))]
+   )
+   
+   df[PS2 == "Dry Food" & Ynb == max(Ynb),
+      .(Price = sum(Value)/sum(Volume),
+        Volume = sum(VolumeC),
+        Value = sum(ValueC)), 
+      by = .(Brand, PriceSegment, GlobalPriceSegment)][order(-Price)]
+   
+} 
+
+
+if (df[(is.na(PriceSegment) | PriceSegment == "" |
+        is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
+      (PS3 == "Savoury Meal" | PS3 == "Fruits"), .N] > 0){
+   
+   price.check = FALSE
+   
+   print("No price segments for Puree brands. Add price segments to the dictionary!")
+   
+   print(
+   df[(is.na(PriceSegment) | PriceSegment == "" |
+          is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
+         (PS3 == "Savoury Meal" | PS3 == "Fruits"),
+      .(Brand = sort(unique(Brand)))]
+   )
+   
+   df[PS3 == "Savoury Meal" | PS3 == "Fruits" & Ynb == max(Ynb),
+      .(Price = sum(Value)/sum(Volume),
+        Volume = sum(VolumeC),
+        Value = sum(ValueC)), 
+      by = .(Brand, PriceSegment, GlobalPriceSegment)][order(-Price)]
+   
+   
+}
+
+if (price.check == FALSE){
+   
+   print("Add price segments!")
+}
+
+
 add.acidified(df)
 
 df = df[, .(SKU, Brand, SubBrand, Organic, CSS, Items.in.pack, Size,
@@ -187,7 +279,7 @@ df = df[, .(SKU, Brand, SubBrand, Organic, CSS, Items.in.pack, Size,
             Volume, Value, EC, AC, VolumeC, ValueC)]
 
 fwrite(df,
-       "/home/sergiy/Documents/Work/Nutricia/Data/202003/df.csv",
+       "/home/sergiy/Documents/Work/Nutricia/Data/202006/df.csv",
        row.names = FALSE)
 
 fwrite(df[, .(SKU, Brand, SubBrand, Size,
@@ -196,12 +288,12 @@ fwrite(df[, .(SKU, Brand, SubBrand, Size,
               Form, Package, PromoPack, PriceSegment,
               Region, Channel, Ynb, Mnb, 
               Volume, Value, EC, AC, VolumeC, ValueC)],
-       "/home/sergiy/Documents/Work/Nutricia/Data/202003/df.pivot.csv",
+       "/home/sergiy/Documents/Work/Nutricia/Data/202006/df.pivot.csv",
        row.names = FALSE)
 
 
 fwrite(df[Ynb >= 2018], 
-       "/home/sergiy/Documents/Work/Nutricia/Data/202003/df.short.csv", 
+       "/home/sergiy/Documents/Work/Nutricia/Data/202006/df.short.csv", 
        row.names = FALSE)
 
 # df = df[, .(SKU, Brand, SubBrand, Organic, CSS, Items.in.pack, Size,
