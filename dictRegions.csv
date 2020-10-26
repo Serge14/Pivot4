@@ -1,0 +1,35 @@
+Region,Region.channel,Channel
+West,Львовская область,PHARMA
+West,Тернопольская область,PHARMA
+West,Закарпатская область,PHARMA
+West,Ивано-франковская область,PHARMA
+West,Ровенская область,PHARMA
+West,Хмельницкая область,PHARMA
+West,Волынская область,PHARMA
+West,Черновицкая область,PHARMA
+East,Харьковская область,PHARMA
+East,Донецкая область,PHARMA
+East,Луганская область,PHARMA
+East,Полтавская область,PHARMA
+East,Запорожская область,PHARMA
+East,Днепропетровская область,PHARMA
+East,Сумская область,PHARMA
+Center,Житомирская область,PHARMA
+Center,Винницкая область,PHARMA
+Center,Киевская область,PHARMA
+Center,Черкасская область,PHARMA
+East,Кировоградская область,PHARMA
+Center,Киев,PHARMA
+Center,Киев и район,PHARMA
+Center,Черниговская область,PHARMA
+South,Республика Крым,PHARMA
+South,Херсонская область,PHARMA
+South,Одесская область,PHARMA
+South,Николаевская область,PHARMA
+Center,KYIV RA&OM,MT
+Center,CENTER RA&OM,MT
+East,NORTH-EAST RA&OM,MT
+East,SOUTH-EAST RA&OM,MT
+East,EAST RA&OM,MT
+South,SOUTH RA&OM,MT
+West,WEST RA&OM,MT

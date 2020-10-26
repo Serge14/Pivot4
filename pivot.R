@@ -4,17 +4,17 @@ library(stringi)
 source("functions.R")
 
 # df.ec = fread("/home/sergiy/Documents/Work/Nutricia/Data/EC_2015-2020M05.csv")
-df.n = fread("/home/sergiy/Documents/Work/Nutricia/Data/N_MT_2015-2020M06.csv")
-df.p  = fread("/home/sergiy/Documents/Work/Nutricia/Data/BF_PH_2015-2020M06.csv")
-df.amn = fread("/home/sergiy/Documents/Work/Nutricia/Data/AMN_PH_2015-2020M06.csv")
-df.sku.proxima = fread("/home/sergiy/Documents/Work/Nutricia/Data/Dictionaries/df.sku.proxima.csv")
-df.sku.nielsen = fread("/home/sergiy/Documents/Work/Nutricia/Data/Dictionaries/df.sku.nielsen.csv")
-df.matrix = fread("/home/sergiy/Documents/Work/Nutricia/Data/Dictionaries/df.sku.matrix.csv")
-dictRegions = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/dictRegions.csv")
-dictEC = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/dictEC.csv")
-dictAC = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/dictAC.csv")
-dict.price.segments = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/PriceSegments.csv")
-dictScent = fread("/home/sergiy/Documents/Work/Nutricia/Scripts/Pivot4/dictScents.csv")
+df.n = fread("/home/serhii/Documents/Work/Nutricia/Data/N_MT_2015-2020M08.csv")
+df.p  = fread("/home/serhii/Documents/Work/Nutricia/Data/BF_PH_2015-2020M08.csv")
+df.amn = fread("/home/serhii/Documents/Work/Nutricia/Data/AMN_PH_2015-2020M08.csv")
+df.sku.proxima = fread("/home/serhii/Documents/Work/Nutricia/Data/Dictionaries/df.sku.proxima.csv")
+df.sku.nielsen = fread("/home/serhii/Documents/Work/Nutricia/Data/Dictionaries/df.sku.nielsen.csv")
+df.matrix = fread("/home/serhii/Documents/Work/Nutricia/Data/Dictionaries/df.sku.matrix.csv")
+dictRegions = fread("/home/serhii/Documents/Work/Nutricia/Scripts/Pivot4/dictRegions.csv")
+dictEC = fread("/home/serhii/Documents/Work/Nutricia/Scripts/Pivot4/dictEC.csv")
+dictAC = fread("/home/serhii/Documents/Work/Nutricia/Scripts/Pivot4/dictAC.csv")
+dict.price.segments = fread("/home/serhii/Documents/Work/Nutricia/Scripts/Pivot4/PriceSegments.csv")
+dictScent = fread("/home/serhii/Documents/Work/Nutricia/Scripts/Pivot4/dictScents.csv")
 
 ### Check periods, select the same range of data
 
@@ -49,7 +49,6 @@ df.n[df.sku.nielsen, on = "SKU2", ID := i.ID]
 
 df.n[is.na(ID) | ID == "", .N]
 df.n = df.n[ID > 0]
-
 
 df.n = df.n[df.matrix, on = "ID",
             `:=`(Brand = i.Brand,
@@ -149,6 +148,9 @@ all(names(df.n) %in% names(df.p))
 
 df = rbindlist(list(df.p, df.n), use.names = TRUE)
 
+# Volume correction
+correct.volume(df)
+
 # Add SKUs
 
 df[Items.in.pack == 1,
@@ -217,6 +219,29 @@ if (df[(is.na(PriceSegment) | PriceSegment == "" |
 
 if (df[(is.na(PriceSegment) | PriceSegment == "" |
         is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
+       (PS0 == "AMN"), .N] > 0) {
+   
+   price.check = FALSE
+   
+   print("No price segments for AMN brands. Add price segments to the dictionary!")
+   
+   print(
+      df[(is.na(PriceSegment) | PriceSegment == "" |
+             is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
+            (PS0 == "AMN"), 
+         .(Brand = sort(unique(Brand)))]
+   )
+   
+   df[PS0 == "AMN" & Ynb == max(Ynb),
+      .(Price = sum(Value)/sum(Volume),
+        Volume = sum(VolumeC),
+        Value = sum(ValueC)), 
+      by = .(Brand, PriceSegment, GlobalPriceSegment)][order(-Price)]
+   
+} 
+
+if (df[(is.na(PriceSegment) | PriceSegment == "" |
+        is.na(GlobalPriceSegment) | GlobalPriceSegment == "") & 
       (PS2 == "Dry Food"), .N] > 0) {
    
    price.check = FALSE
@@ -268,7 +293,6 @@ if (price.check == FALSE){
    print("Add price segments!")
 }
 
-
 add.acidified(df)
 
 df = df[, .(SKU, Brand, SubBrand, Organic, CSS, Items.in.pack, Size,
@@ -279,7 +303,7 @@ df = df[, .(SKU, Brand, SubBrand, Organic, CSS, Items.in.pack, Size,
             Volume, Value, EC, AC, VolumeC, ValueC)]
 
 fwrite(df,
-       "/home/sergiy/Documents/Work/Nutricia/Data/202006/df.csv",
+       "/home/serhii/Documents/Work/Nutricia/Data/202008/df.csv",
        row.names = FALSE)
 
 fwrite(df[, .(SKU, Brand, SubBrand, Size,
@@ -288,12 +312,12 @@ fwrite(df[, .(SKU, Brand, SubBrand, Size,
               Form, Package, PromoPack, PriceSegment,
               Region, Channel, Ynb, Mnb, 
               Volume, Value, EC, AC, VolumeC, ValueC)],
-       "/home/sergiy/Documents/Work/Nutricia/Data/202006/df.pivot.csv",
+       "/home/serhii/Documents/Work/Nutricia/Data/202008/df.pivot.csv",
        row.names = FALSE)
 
 
-fwrite(df[Ynb >= 2018], 
-       "/home/sergiy/Documents/Work/Nutricia/Data/202006/df.short.csv", 
+fwrite(df[Ynb >= 2019], 
+       "/home/serhii/Documents/Work/Nutricia/Data/202008/df.short.csv", 
        row.names = FALSE)
 
 # df = df[, .(SKU, Brand, SubBrand, Organic, CSS, Items.in.pack, Size,

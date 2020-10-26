@@ -47,6 +47,28 @@ calculate.volume = function(df) {
   
   # check size
   
+  # df[, VolumeCorrection := 1]
+  # df[PS0 == "IMF" & Form == "Liquid", VolumeCorrection := 7]
+  # # df[PS0 == "AMN" & Form == "Liquid", VolumeCorrection := 4.5]
+  # df[PS == "Enhanced Recovery" & Form == "Liquid", VolumeCorrection := 4.801183]
+  # df[PS == "Recovery" & Form == "Liquid", VolumeCorrection := 2.892422]
+  # df[PS == "Metabolics" & Form == "Liquid", VolumeCorrection := 5.430002]
+  # df[PS == "Faltering Growth" & Form == "Liquid", VolumeCorrection := 3.416514]
+  # 
+  # # df[PS == "Condensed Milk" & Form == "Liquid", VolumeCorrection := 3.5]
+  # df[PS == "Liquid Cereals" &
+  #      Form == "Liquid", VolumeCorrection := 3.5]
+  
+  # df[, Volume := Items * VolumeFactor * Items.in.pack / VolumeCorrection]
+  df[, Volume := Items * VolumeFactor * Items.in.pack]
+  
+  df[, c("Size.Temp", "UOM.Temp", "VolumeFactor") := NULL]
+  # df[, c("Size.Temp", "UOM.Temp", "VolumeFactor", "VolumeCorrection") := NULL]
+  
+}
+
+correct.volume = function(df){
+  
   df[, VolumeCorrection := 1]
   df[PS0 == "IMF" & Form == "Liquid", VolumeCorrection := 7]
   # df[PS0 == "AMN" & Form == "Liquid", VolumeCorrection := 4.5]
@@ -59,9 +81,9 @@ calculate.volume = function(df) {
   df[PS == "Liquid Cereals" &
        Form == "Liquid", VolumeCorrection := 3.5]
   
-  df[, Volume := Items * VolumeFactor * Items.in.pack / VolumeCorrection]
+  df[, Volume := Volume / VolumeCorrection]
   
-  df[, c("Size.Temp", "UOM.Temp", "VolumeFactor", "VolumeCorrection") := NULL]
+  df[, VolumeCorrection := NULL]
   
 }
 
@@ -105,11 +127,17 @@ extrapolate = function(df) {
   df[(PS3 == "Base" | PS3 == "Base Plus") & Channel == "PHARMA",
      AC := dictAC[.SD, .(BP.pharma), on = c("Ynb", "Mnb")]]
   
+  df[PS3 == "Specials" & Channel == "MT",
+     AC := dictAC[.SD, .(Specials.MT), on = c("Ynb", "Mnb")]]
+  
   df[PS3 == "Specials" & Channel == "PHARMA",
      AC := dictAC[.SD, .(Specials.pharma), on = c("Ynb", "Mnb")]]
   
   df[PS == "Digestive Comfort" & Channel == "PHARMA",
      AC := dictAC[.SD, .(DC.pharma), on = c("Ynb", "Mnb")]]
+  
+  df[PS == "Digestive Comfort" & Channel == "MT",
+     AC := dictAC[.SD, .(DC.MT), on = c("Ynb", "Mnb")]]
   
   df[PS == "Hypoallergenic" & Channel == "PHARMA",
      AC := dictAC[.SD, .(HA.pharma), on = c("Ynb", "Mnb")]]
@@ -169,7 +197,7 @@ define.scent.type = function(a) {
   v = c(0, 0)
   
   a = stri_trim(stri_replace_all_regex(a, "[0-9]+", ""))
-  b = unlist(stri_split_fixed(a, "-"))
+  b = stri_trim(unlist(stri_split_fixed(a, "-")))
   
   
   if (all(b %in% dictScent$V2)) {
@@ -458,20 +486,33 @@ check.attributes = function(df) {
       list1 = df[, unique(get(i))][!(df[, unique(get(i)) %in% dictPSV])]
       
     } else if (i == "Organic") {
-      list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
-                                          PS0 == "AMN", unique(get(i)) %in% dictOrganic])]
+      # list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
+      #                                     PS0 == "AMN", unique(get(i)) %in% dictOrganic])]
+      
+      list1 = df[PS0 %in% c("IMF", "AMN"), 
+                 unique(get(i))[!unique(get(i)) %in% dictOrganic]]
       
     } else if (i == "CSS") {
-      list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
-                                          PS0 == "AMN", unique(get(i)) %in% dictCSS])]
+      # list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
+      #                                     PS0 == "AMN", unique(get(i)) %in% dictCSS])]
+      
+      list1 = df[PS0 %in% c("IMF", "AMN"), 
+                 unique(get(i))[!unique(get(i)) %in% dictCSS]]
       
     } else if (i == "Protein") {
-      list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
-                                          PS0 == "AMN", unique(get(i)) %in% dictProtein])]
+      # list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
+      #                                     PS0 == "AMN", unique(get(i)) %in% dictProtein])]
+
+      list1 = df[PS0 %in% c("IMF", "AMN"), 
+                 unique(get(i))[!unique(get(i)) %in% dictProtein]]
+
       
     } else if (i == "Flavoured") {
-      list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
-                                          PS0 == "AMN", unique(get(i)) %in% dictFlavoured])]
+      # list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
+      #                                     PS0 == "AMN", unique(get(i)) %in% dictFlavoured])]
+      
+      list1 = df[PS0 %in% c("IMF", "AMN"), 
+                 unique(get(i))[!unique(get(i)) %in% dictFlavoured]]
       
     } else if (i == "Form") {
       list1 = df[, unique(get(i))][!(df[, unique(get(i)) %in% dictForm])]
@@ -480,8 +521,11 @@ check.attributes = function(df) {
       list1 = df[, unique(get(i))][!(df[, unique(get(i)) %in% dictPackage])]
       
     } else if (i == "Storage") {
-      list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
-                                          PS0 == "AMN", unique(get(i)) %in% dictStorage])]
+      # list1 = df[, unique(get(i))][!(df[PS0 == "IMF" |
+      #                                     PS0 == "AMN", unique(get(i)) %in% dictStorage])]
+      
+      list1 = df[PS0 %in% c("IMF", "AMN"), 
+                 unique(get(i))[!unique(get(i)) %in% dictStorage]]
       
     } else if (i == "PromoPack") {
       list1 = df[, unique(get(i))][!(df[, unique(get(i)) %in% dictPromoPack])]
@@ -1332,7 +1376,8 @@ export.new.skus = function(df, df.existing){
   
   df = df[, .N, by = cols.united][, N := NULL]
   
-  df.new = df[!df.existing[!(is.na(ID) | ID == "")], on = unique.ID]
+  # df.new = df[!df.existing[!(is.na(ID) | ID == "")], on = unique.ID]
+  df.new = df[!df.existing, on = unique.ID]
   
   # rework for all sources (require change of nielsen data)
   # df.new[dictCompanyBrand, on = c(BRAND = "NielsenBrand"), Brand := i.RTRIBrand]
